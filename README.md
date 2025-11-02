@@ -15,7 +15,7 @@
 
 ## **Скриншоты**
 
-![Home](assets/demo/home_light_theme.jfif.jfif)
+![Home](assets/demo/home_light_theme.jfif)
 ![Home_Dark](assets/demo/home_dark_theme.jfif)
 ![Simulation](assets/demo/simulation.jfif)
 ![PlanetPage](assets/demo/planets_page.jfif)
