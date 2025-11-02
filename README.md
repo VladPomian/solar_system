@@ -13,30 +13,48 @@
 
 ---
 
-## **Скриншоты**
+## Скриншоты
 
-![Home](assets/demo/home_light_theme.jfif)
-![Home_Dark](assets/demo/home_dark_theme.jfif)
-![Simulation](assets/demo/simulation.jfif)
-![PlanetPage](assets/demo/planets_page.jfif)
-![PlanetDetalPage](assets/demo//planets_detail.jfif)
-![PlanetAR](assets/demo/planets_AR.jfif)
-![Predictionpage](assets/demo/prediction_page.jfif)
-![FirstGraph](assets/demo/prediction_graph_first.jfif)
-![SecondGraph](assets/demo/prediction_graph_second.jfif)
-![Diagram](assets/demo/prediction_diagram.jfif)
-![Table](assets/demo/prediction_table.jfif)
-![AIFormDialog](assets/demo/request_dialog.jfif)
-![AINavigation](assets/demo/answer_nav_dialog.jfif)
-![AIAnswer](assets/demo/answer_dialog.jfif)
-![Settings](assets/demo/settings_general.jfif)
-![SettingsType](assets/demo/settings_general_type2.jfif)
-![SettingsAI](assets/demo/settings_voice_assist.jfif)
-![SettingsAboutApp](assets/demo/settings_about_app.jfif)
-![VersionApp](assets/demo/settings_version_dialog.jfif)
-![DevDialog](assets/demo/settings_developer_dialog.jfif)
-![Directory](assets/demo/settings_help_card.jfif)
-![Answer](assets/demo/settings_help_answer.jfif)
+<table>
+  <tr>
+    <td><img src="assets/demo/home_light_theme.jfif" width="300" alt="Home Light"/></td>
+    <td><img src="assets/demo/home_dark_theme.jfif" width="300" alt="Home Dark"/></td>
+    <td><img src="assets/demo/simulation.jfif" width="300" alt="Simulation"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/planets_page.jfif" width="300" alt="Planets Page"/></td>
+    <td><img src="assets/demo/planets_detail.jfif" width="300" alt="Planet Detail"/></td>
+    <td><img src="assets/demo/planets_AR.jfif" width="300" alt="Planet AR"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/prediction_page.jfif" width="300" alt="Prediction Page"/></td>
+    <td><img src="assets/demo/prediction_graph_first.jfif" width="300" alt="Graph 1"/></td>
+    <td><img src="assets/demo/prediction_graph_second.jfif" width="300" alt="Graph 2"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/prediction_diagram.jfif" width="300" alt="Diagram"/></td>
+    <td><img src="assets/demo/prediction_table.jfif" width="300" alt="Table"/></td>
+    <td><img src="assets/demo/request_dialog.jfif" width="300" alt="AI Request"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/answer_nav_dialog.jfif" width="300" alt="AI Navigation"/></td>
+    <td><img src="assets/demo/answer_dialog.jfif" width="300" alt="AI Answer"/></td>
+    <td><img src="assets/demo/settings_general.jfif" width="300" alt="Settings"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/settings_general_type2.jfif" width="300" alt="Settings Type"/></td>
+    <td><img src="assets/demo/settings_voice_assist.jfif" width="300" alt="Voice Settings"/></td>
+    <td><img src="assets/demo/settings_about_app.jfif" width="300" alt="About App"/></td>
+  </tr>
+  <tr>
+    <td><img src="assets/demo/settings_version_dialog.jfif" width="300" alt="Version"/></td>
+    <td><img src="assets/demo/settings_developer_dialog.jfif" width="300" alt="Dev Dialog"/></td>
+    <td><img src="assets/demo/settings_help_card.jfif" width="300" alt="Help Card"/></td>
+  </tr>
+  <tr>
+    <td colspan="3" style="text-align:center;"><img src="assets/demo/settings_help_answer.jfif" width="300" alt="Help Answer"/></td>
+  </tr>
+</table>
 
 ---
 
