@@ -45,6 +45,9 @@ class _FeedbackDialogContentState extends State<_FeedbackDialogContent> {
   bool isLoading = false;
   String? errorMessage;
 
+  static const int maxThemeLength = 20;
+  static const int maxMessageLength = 500;
+
   @override
   void initState() {
     super.initState();
@@ -72,109 +75,171 @@ class _FeedbackDialogContentState extends State<_FeedbackDialogContent> {
         ),
       ),
       content: SizedBox(
-              width: double.maxFinite,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: themeController,
-                      enabled: !isLoading,
-                      decoration: InputDecoration(
-                        labelText: 'Тема',
-                        labelStyle: TextStyle(color: widget.theme['secondary']),
-                        border: const OutlineInputBorder(),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: widget.theme['primary']!),
-                        ),
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                children: [
+                  TextField(
+                    controller: themeController,
+                    enabled: !isLoading,
+                    maxLength: maxThemeLength,
+                    decoration: InputDecoration(
+                      labelText: 'Тема',
+                      labelStyle: TextStyle(color: widget.theme['secondary']),
+                      border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: widget.theme['primary']!),
                       ),
-                      style: TextStyle(color: widget.theme['text']),
+                      counterText: '',
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: messageController,
-                      enabled: !isLoading,
-                      maxLines: 5,
-                      decoration: InputDecoration(
-                        labelText: 'Сообщение',
-                        labelStyle: TextStyle(color: widget.theme['secondary']),
-                        border: const OutlineInputBorder(),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: widget.theme['primary']!),
-                        ),
-                      ),
-                      style: TextStyle(color: widget.theme['text']),
+                    style: TextStyle(color: widget.theme['text']),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: themeController,
+                      builder: (context, value, _) {
+                        final length = value.text.length;
+                        if (length == 0) return const SizedBox.shrink();
+                        return Text(
+                          '$length/$maxThemeLength',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: length > maxThemeLength * 0.9 
+                                ? Colors.red 
+                                : AppTheme.getSecondaryTextColor(context),
+                          ),
+                        );
+                      },
                     ),
-                    if (errorMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 14),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    if (isLoading) ...[
-                      const SizedBox(height: 20),
-                      const CircularProgressIndicator(),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
+
+              const SizedBox(height: 16),
+
+              Stack(
+                children: [
+                  TextField(
+                    controller: messageController,
+                    enabled: !isLoading,
+                    keyboardType: TextInputType.multiline,
+                    minLines: 4,
+                    maxLines: 8,
+                    maxLength: maxMessageLength,
+                    decoration: InputDecoration(
+                      labelText: 'Сообщение',
+                      labelStyle: TextStyle(color: widget.theme['secondary']),
+                      border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: widget.theme['primary']!),
+                      ),
+                      alignLabelWithHint: true,
+                      counterText: '',
+                    ),
+                    style: TextStyle(color: widget.theme['text']),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: messageController,
+                      builder: (context, value, _) {
+                        final length = value.text.length;
+                        if (length == 0) return const SizedBox.shrink();
+                        return Text(
+                          '$length/$maxMessageLength',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: length > maxMessageLength * 0.9 
+                                ? Colors.red 
+                                : AppTheme.getSecondaryTextColor(context),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  errorMessage!,
+                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              if (isLoading) ...[
+                const SizedBox(height: 20),
+                const CircularProgressIndicator(),
+              ],
+            ],
+          ),
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: isLoading ? null : () => Navigator.pop(context),
           child: Text('Отмена', style: TextStyle(color: widget.theme['primary'])),
         ),
         ElevatedButton(
-          onPressed: isLoading
-              ? null
-              : () async {
-                  final themeText = themeController.text.trim();
-                  final messageText = messageController.text.trim();
-
-                  if (themeText.isEmpty || messageText.isEmpty) {
-                    if (widget.parentContext.mounted) {
-                      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-                        const SnackBar(content: Text('Заполните все поля')),
-                      );
-                    }
-                    return;
-                  }
-
-                  setState(() {
-                    errorMessage = null;
-                    isLoading = true;
-                  });
-
-                  try {
-                    await widget.firestoreService.createTicket(themeText, messageText);
-
-                    if (widget.parentContext.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-                        const SnackBar(
-                          content: Text('Обращение отправлено! ✅'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    print('Ошибка отправки обратной связи: $e');
-                    if (mounted) {
-                      setState(() {
-                        errorMessage = 'Не удалось отправить. Проверьте интернет.';
-                        isLoading = false;
-                      });
-                    }
-                  }
-                },
-          child: const Text('Отправить', style: TextStyle(color: Colors.white)),
+          onPressed: isLoading ? null : _submitFeedback,
           style: ElevatedButton.styleFrom(
             backgroundColor: widget.theme['primary'],
           ),
+          child: const Text('Отправить', style: TextStyle(color: Colors.white)),
         ),
       ],
     );
+  }
+
+  Future<void> _submitFeedback() async {
+    final themeText = themeController.text.trim();
+    final messageText = messageController.text.trim();
+
+    if (themeText.isEmpty || messageText.isEmpty) {
+      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+        const SnackBar(content: Text('Заполните все поля')),
+      );
+      return;
+    }
+
+    if (themeText.length > maxThemeLength || messageText.length > maxMessageLength) {
+      setState(() {
+        errorMessage = 'Превышено ограничение по символам';
+      });
+      return;
+    }
+
+    setState(() {
+      errorMessage = null;
+      isLoading = true;
+    });
+
+    try {
+      await widget.firestoreService.createTicket(themeText, messageText);
+
+      if (widget.parentContext.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+          const SnackBar(
+            content: Text('Обращение отправлено!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Не удалось отправить. Проверьте интернет.';
+          isLoading = false;
+        });
+      }
+    }
   }
 }

@@ -57,7 +57,9 @@ class ChatInputField extends StatelessWidget {
                           '$len/$maxMessageLength',
                           style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.getSecondaryTextColor(context),
+                            color: len > maxMessageLength * 0.9 
+                                ? Colors.red 
+                                : AppTheme.getSecondaryTextColor(context),
                           ),
                         ),
                       );
