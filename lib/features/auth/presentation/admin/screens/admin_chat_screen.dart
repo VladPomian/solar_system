@@ -22,6 +22,8 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
           currentUid: FirebaseAuth.instance.currentUser?.uid,
         );
 
+  static const int maxMessageLength = 1000;
+
   @override
   void initState() {
     super.initState();
@@ -101,14 +103,45 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     final textColor = AppTheme.getChatTextColor(context, isMine);
     final secondaryColor = AppTheme.getChatSecondaryTextColor(context, isMine);
 
+    final gradient = LinearGradient(
+        begin: isMine ? Alignment.topLeft : Alignment.topRight,
+        end: isMine ? Alignment.bottomRight : Alignment.bottomLeft,
+        colors: [
+          bubbleColor,
+          bubbleColor.withOpacity(0.2),
+        ],
+        stops: const [0.0, 1.0],
+      );
+
+    final borderRadius = isMine
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+            bottomRight: Radius.circular(0),
+          )
+        : const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(0),
+          );
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.circular(16),
+          gradient: gradient,
+          borderRadius: borderRadius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment:
@@ -139,45 +172,84 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   }
 
   Widget _buildInputField() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(labelText: 'Ответ админа'),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send),
-            onPressed: () async {
-              if (_messageController.text.isEmpty) return;
-              final text = _messageController.text;
-              _messageController.clear();
-              try {
-                await _firestoreService.addAdminMessage(widget.ticket.id, text);
-              } catch (e) {
-                if (mounted) {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Ошибка'),
-                      content: Text('Не удалось отправить сообщение:\n$e'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('OK'),
+  return Padding(
+    padding: const EdgeInsets.all(8.0),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              TextField(
+                controller: _messageController,
+                keyboardType: TextInputType.multiline,
+                maxLines: 6,
+                minLines: 1,
+                maxLength: maxMessageLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                decoration: const InputDecoration(
+                  labelText: 'Ответ админа',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.fromLTRB(12, 16, 12, 12),
+                  alignLabelWithHint: true,
+                ),
+                onSubmitted: (_) {},
+              ),
+              Positioned(
+                top: 0,
+                right: 8,
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _messageController,
+                  builder: (context, value, child) {
+                    final len = value.text.length;
+                    if (len == 0) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '$len/$maxMessageLength',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.getSecondaryTextColor(context),
                         ),
-                      ],
-                    ),
-                  );
-                }
-              }
-            },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.send),
+          color: AppTheme.getPrimaryColor(context),
+          onPressed: () async {
+            if (_messageController.text.isEmpty) return;
+            final text = _messageController.text;
+            _messageController.clear();
+            try {
+              await _firestoreService.addAdminMessage(widget.ticket.id, text);
+            } catch (e) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Ошибка'),
+                    content: Text('Не удалось отправить сообщение:\n$e'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      ],
+    ),
+  );
+}
 }
