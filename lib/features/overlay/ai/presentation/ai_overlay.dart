@@ -47,19 +47,17 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
   final GlobalKey _aiIconKey = GlobalKey();
   bool _isSpeechInitialized = false;
   late SettingsProvider _settingsProvider;
+  bool _overlayInserted = false;
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
-    _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    if (!_stateNotifier.value.isCardVisible) {
-      _stateNotifier.value = AIState();
-    }
-    _stateNotifier.addListener(_onStateChanged);
     _cardAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+
     _cardSlideAnimation = Tween<Offset>(
       begin: const Offset(1, 0),
       end: const Offset(0, 0),
@@ -67,57 +65,68 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
       parent: _cardAnimationController!,
       curve: Curves.easeInOut,
     ));
+
     _cardAnimationController!.addStatusListener((status) {
-      if (status == AnimationStatus.dismissed) {
-        if (mounted) {
-          setState(() {});
-          _overlayEntry?.markNeedsBuild();
-        }
-      } else if (status == AnimationStatus.completed &&
+      if (_isDisposed) return;
+      if (status == AnimationStatus.completed &&
           _stateNotifier.value.aiContent != null &&
           _stateNotifier.value.isFirstAppearance &&
           _settingsProvider.isAutoSpeakEnabled) {
         _ttsService.speak(_stateNotifier.value.aiContent!);
       }
     });
-    _createOverlay();
+
     _initServices();
+
+    // Отложенное создание и вставка overlay
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_stateNotifier.value.isCardVisible && _settingsProvider.isAnimationEnabled) {
-        _cardAnimationController!.forward();
-      } else {
-        _cardAnimationController!.value = 1.0;
-      }
+      if (_isDisposed || !mounted) return;
+      _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      _stateNotifier.addListener(_onStateChanged);
+      _settingsProvider.addListener(_onSettingsChanged);
+      _createOverlay();
+      _tryInsertOverlay();
     });
-    _settingsProvider.addListener(_onSettingsChanged);
+  }
+
+  void _tryInsertOverlay() {
+    if (_isDisposed || !mounted || _overlayInserted || _overlayEntry == null) return;
+
+    try {
+      Overlay.of(context).insert(_overlayEntry!);
+      _overlayInserted = true;
+    } catch (e) {
+      debugPrint('Ошибка вставки overlay: $e');
+    }
+
+    if (_stateNotifier.value.isCardVisible && _settingsProvider.isAnimationEnabled) {
+      _cardAnimationController!.forward();
+    } else {
+      _cardAnimationController!.value = 1.0;
+    }
   }
 
   void _initServices() async {
     await _ttsService.initialize();
     await _ttsService.setSpeed(_settingsProvider.ttsSpeed);
     _ttsService.setErrorHandler((msg) => _showErrorSnackBar('tts_error'));
+
     if (!_isSpeechInitialized) {
       _isSpeechInitialized = await _speechService.initialize(
-        onStatus: (status) {
-          if (mounted) {
-            setState(() {});
-          }
-        },
+        onStatus: (status) {},
         onError: (error) {
-          if (mounted) {
-            setState(() {});
-            _showErrorSnackBar('speech_error');
-          }
+          if (_isDisposed) return;
+          _showErrorSnackBar('speech_error');
         },
       );
     }
   }
 
   void _onSettingsChanged() {
-    if (!_settingsProvider.isAutoSpeakEnabled) {
-      _ttsService.stop();
-    }
+    if (_isDisposed || !mounted) return;
+
     _ttsService.setSpeed(_settingsProvider.ttsSpeed);
+
     if (_stateNotifier.value.isCardVisible) {
       if (_settingsProvider.isAnimationEnabled) {
         if (_cardAnimationController!.status != AnimationStatus.completed &&
@@ -137,38 +146,42 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
   }
 
   void _onStateChanged() {
-    if (mounted) {
-      setState(() {});
-      _overlayEntry?.markNeedsBuild();
-      if (_stateNotifier.value.isCardVisible) {
+    if (_isDisposed || !mounted) return;
+
+    if (_stateNotifier.value.isCardVisible) {
+      if (_settingsProvider.isAnimationEnabled) {
         if (_cardAnimationController!.status != AnimationStatus.completed &&
-            _cardAnimationController!.status != AnimationStatus.forward &&
-            _settingsProvider.isAnimationEnabled) {
+            _cardAnimationController!.status != AnimationStatus.forward) {
           _cardAnimationController!.reset();
           _cardAnimationController!.forward();
-        } else if (!_settingsProvider.isAnimationEnabled) {
-          _cardAnimationController!.value = 1.0;
         }
       } else {
-        if (_cardAnimationController!.status != AnimationStatus.dismissed &&
-            _cardAnimationController!.status != AnimationStatus.reverse &&
-            _settingsProvider.isAnimationEnabled) {
-          _cardAnimationController!.reverse();
-        } else if (!_settingsProvider.isAnimationEnabled) {
-          _cardAnimationController!.value = 0.0;
-        }
+        _cardAnimationController!.value = 1.0;
+      }
+    } else {
+      if (_cardAnimationController!.status != AnimationStatus.dismissed &&
+          _cardAnimationController!.status != AnimationStatus.reverse &&
+          _settingsProvider.isAnimationEnabled) {
+        _cardAnimationController!.reverse();
+      } else if (!_settingsProvider.isAnimationEnabled) {
+        _cardAnimationController!.value = 0.0;
       }
     }
   }
 
   void _sendAIRequest(String input) async {
+    if (_isDisposed) return;
+
     try {
       final parsedContent = await _aiService.sendAIRequest(context, input);
+
       if (_stateNotifier.value.isCardVisible && _settingsProvider.isAnimationEnabled) {
         await _cardAnimationController!.reverse();
       }
+
       String? newAiContent;
       bool newIsCardVisible = false;
+
       if (parsedContent['content'] == 'null' || parsedContent['content'] == '') {
         newAiContent = parsedContent['content'] == 'null'
             ? 'Запрос не распознан. Попробуйте перефразировать.'
@@ -178,6 +191,7 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
         newAiContent = parsedContent['content'];
         newIsCardVisible = true;
       }
+
       _stateNotifier.value = AIState(
         aiContent: newAiContent,
         aiLink: parsedContent['link'] != 'null' ? parsedContent['link'] : null,
@@ -185,19 +199,12 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
         isCardVisible: newIsCardVisible,
         isFirstAppearance: true,
       );
-      if (_stateNotifier.value.isCardVisible) {
-        if (_settingsProvider.isAnimationEnabled) {
-          _cardAnimationController!.reset();
-          _cardAnimationController!.forward();
-        } else {
-          _cardAnimationController!.value = 1.0;
-        }
-        _overlayEntry?.markNeedsBuild();
-        _hideTimer?.cancel();
-        if (_stateNotifier.value.isFirstAppearance) {
-          _hideTimer = Timer(const Duration(seconds: 10), _hideCard);
-        }
+
+      _hideTimer?.cancel();
+      if (_stateNotifier.value.isFirstAppearance) {
+        _hideTimer = Timer(const Duration(seconds: 10), _hideCard);
       }
+
       if (_stateNotifier.value.navigation != null) {
         final destination = AINavigation.getDestination(
           _stateNotifier.value.navigation,
@@ -207,69 +214,76 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
           widget.onFontSizeChanged,
           widget.fontSize,
         );
+
         if (destination != null) {
           AINavigation.navigate(context, destination).then((_) {
-            if (mounted) {
-              _createOverlay();
-              _overlayEntry?.markNeedsBuild();
-            }
+            if (_isDisposed || !mounted) return;
+            _createOverlay();
           });
         }
       }
     } catch (e) {
+      if (_isDisposed) return;
       _showErrorSnackBar(e.toString());
     }
   }
 
   void _navigateToSettings() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    if (_isDisposed) return;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SettingsPage(
-          onThemeChanged: widget.onThemeChanged,
-          isDarkTheme: widget.isDarkTheme,
-          onFontSizeChanged: widget.onFontSizeChanged,
-          fontSize: widget.fontSize,
-          onAnimationEnabledChanged: _settingsProvider.setAnimationEnabled,
-          isAnimationEnabled: _settingsProvider.isAnimationEnabled,
-          onAutoSpeakEnabledChanged: _settingsProvider.setAutoSpeakEnabled,
-          isAutoSpeakEnabled: _settingsProvider.isAutoSpeakEnabled,
-          onTtsSpeedChanged: _settingsProvider.setTtsSpeed,
-          ttsSpeed: _settingsProvider.ttsSpeed,
-          onAIModelChanged: _settingsProvider.setAIModel,
-          aiModel: _settingsProvider.aiModel,
-        ),
-        settings: const RouteSettings(name: '/settings'),
-      ),
-    ).then((_) {
-      if (mounted) {
-        _createOverlay();
-      }
-    });
+    if (_overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+      _overlayInserted = false;
+    }
+
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => SettingsPage(
+              onThemeChanged: widget.onThemeChanged,
+              isDarkTheme: widget.isDarkTheme,
+              onFontSizeChanged: widget.onFontSizeChanged,
+              fontSize: widget.fontSize,
+              onAnimationEnabledChanged: _settingsProvider.setAnimationEnabled,
+              isAnimationEnabled: _settingsProvider.isAnimationEnabled,
+              onAutoSpeakEnabledChanged: _settingsProvider.setAutoSpeakEnabled,
+              isAutoSpeakEnabled: _settingsProvider.isAutoSpeakEnabled,
+              onTtsSpeedChanged: _settingsProvider.setTtsSpeed,
+              ttsSpeed: _settingsProvider.ttsSpeed,
+              onAIModelChanged: _settingsProvider.setAIModel,
+              aiModel: _settingsProvider.aiModel,
+            ),
+            settings: const RouteSettings(name: '/settings'),
+          ),
+        )
+        .then((_) {
+          if (_isDisposed || !mounted) return;
+          _createOverlay();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _tryInsertOverlay();
+          });
+        });
   }
 
   void _showErrorSnackBar(String errorCode) {
+    if (_isDisposed || !mounted) return;
     ErrorSnackBar.show(context, errorCode, _aiIconKey);
   }
 
-  void _handleSpeechStatus(String status) {
-    if (status == 'done' || status == 'notListening') {
-      if (mounted) {
-        setState(() {});
-        _overlayEntry?.markNeedsBuild();
-      }
-    }
-  }
+  void _handleSpeechStatus(String status) {}
 
   void _hideCard() {
+    if (_isDisposed) return;
+
     _hideTimer?.cancel();
     _ttsService.stop();
+
     _stateNotifier.value = _stateNotifier.value.copyWith(
       isFirstAppearance: false,
       isCardVisible: false,
     );
+
     if (_settingsProvider.isAnimationEnabled) {
       _cardAnimationController!.reverse();
     } else {
@@ -278,24 +292,24 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
   }
 
   void _restoreCard() {
+    if (_isDisposed) return;
+
     _hideTimer?.cancel();
+
     final bool canAnimate = TickerMode.of(context);
+
     if (canAnimate && _settingsProvider.isAnimationEnabled) {
       _cardAnimationController!.reverse().then((_) {
-        _stateNotifier.value = _stateNotifier.value.copyWith(
-          isCardVisible: false,
-        );
-        _overlayEntry?.markNeedsBuild();
+        if (_isDisposed) return;
+        _stateNotifier.value = _stateNotifier.value.copyWith(isCardVisible: false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _stateNotifier.value = _stateNotifier.value.copyWith(
-              isCardVisible: true,
-              isFirstAppearance: false,
-            );
-            _cardAnimationController!.reset();
-            _cardAnimationController!.forward();
-            _overlayEntry?.markNeedsBuild();
-          }
+          if (_isDisposed || !mounted) return;
+          _stateNotifier.value = _stateNotifier.value.copyWith(
+            isCardVisible: true,
+            isFirstAppearance: false,
+          );
+          _cardAnimationController!.reset();
+          _cardAnimationController!.forward();
         });
       });
     } else {
@@ -304,108 +318,116 @@ class _AIOverlayState extends State<AIOverlay> with TickerProviderStateMixin {
         isFirstAppearance: false,
       );
       _cardAnimationController!.value = 1.0;
-      _overlayEntry?.markNeedsBuild();
     }
   }
 
   void _createOverlay() {
+    if (_isDisposed) return;
+
     if (_overlayEntry != null) {
       _overlayEntry!.remove();
       _overlayEntry = null;
+      _overlayInserted = false;
     }
+
     _overlayEntry = OverlayEntry(
-      builder: (context) => Stack(
-        children: [
-          Positioned(
-            top: 32,
-            right: 16,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.settings,
-                    color: AppTheme.getTextColor(context),
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppTheme.getPrimaryColor(context).withOpacity(0.3),
-                    shape: const CircleBorder(),
-                    padding: const EdgeInsets.all(6),
-                  ),
-                  onPressed: _navigateToSettings,
-                ),
-                const SizedBox(width: 2),
-                Column(
+      builder: (context) => ValueListenableBuilder<AIState>(
+        valueListenable: _stateNotifier,
+        builder: (context, state, _) {
+          if (_isDisposed || !mounted) {
+            return const SizedBox.shrink(); // ← Защита от rebuild после dispose
+          }
+
+          return Stack(
+            children: [
+              Positioned(
+                top: 32,
+                right: 16,
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     IconButton(
-                      key: _aiIconKey,
-                      icon: Icon(
-                        Icons.assistant,
-                        color: AppTheme.getTextColor(context),
-                      ),
+                      icon: Icon(Icons.settings, color: AppTheme.getTextColor(context)),
                       style: IconButton.styleFrom(
                         backgroundColor: AppTheme.getPrimaryColor(context).withOpacity(0.3),
                         shape: const CircleBorder(),
                         padding: const EdgeInsets.all(6),
                       ),
-                      onPressed: () => AIFormDialog.show(
-                        context: context,
-                        speechService: _speechService,
-                        onSubmit: _sendAIRequest,
-                        ttsService: _ttsService,
-                        vsync: this,
-                        onSpeechError: _showErrorSnackBar,
-                        onSpeechStatus: _handleSpeechStatus,
-                        isDarkTheme: widget.isDarkTheme,
-                        fontSize: widget.fontSize,
-                      ),
+                      onPressed: _navigateToSettings,
                     ),
-                    if (!_stateNotifier.value.isCardVisible && _stateNotifier.value.aiContent != null)
-                      IconButton(
-                        icon: Icon(
-                          Icons.keyboard_arrow_up,
-                          color: AppTheme.getTextColor(context),
+                    const SizedBox(width: 2),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: _aiIconKey,
+                          icon: Icon(Icons.assistant, color: AppTheme.getTextColor(context)),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppTheme.getPrimaryColor(context).withOpacity(0.3),
+                            shape: const CircleBorder(),
+                            padding: const EdgeInsets.all(6),
+                          ),
+                          onPressed: () => AIFormDialog.show(
+                            context: context,
+                            speechService: _speechService,
+                            onSubmit: _sendAIRequest,
+                            ttsService: _ttsService,
+                            vsync: this,
+                            onSpeechError: _showErrorSnackBar,
+                            onSpeechStatus: _handleSpeechStatus,
+                            isDarkTheme: widget.isDarkTheme,
+                            fontSize: widget.fontSize,
+                          ),
                         ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppTheme.getPrimaryColor(context).withOpacity(0.3),
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(8),
-                        ),
-                        onPressed: _restoreCard,
-                      ),
+                        if (!state.isCardVisible && state.aiContent != null)
+                          IconButton(
+                            icon: Icon(Icons.keyboard_arrow_up, color: AppTheme.getTextColor(context)),
+                            style: IconButton.styleFrom(
+                              backgroundColor: AppTheme.getPrimaryColor(context).withOpacity(0.3),
+                              shape: const CircleBorder(),
+                              padding: const EdgeInsets.all(8),
+                            ),
+                            onPressed: _restoreCard,
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          if (_stateNotifier.value.isCardVisible && _stateNotifier.value.aiContent != null)
-            ACard(
-              state: _stateNotifier.value,
-              animation: _cardSlideAnimation!,
-              onHide: _hideCard,
-              isDarkTheme: widget.isDarkTheme,
-              fontSize: widget.fontSize,
-            ),
-        ],
+              ),
+              if (state.isCardVisible && state.aiContent != null)
+                ACard(
+                  state: state,
+                  animation: _cardSlideAnimation!,
+                  onHide: _hideCard,
+                  isDarkTheme: widget.isDarkTheme,
+                  fontSize: widget.fontSize,
+                ),
+            ],
+          );
+        },
       ),
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _overlayEntry != null) {
-        Overlay.of(context).insert(_overlayEntry!);
-      }
-    });
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+
     _stateNotifier.removeListener(_onStateChanged);
     _settingsProvider.removeListener(_onSettingsChanged);
     _cardAnimationController?.dispose();
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+
+    if (_overlayEntry != null) {
+      try {
+        _overlayEntry!.remove();
+      } catch (e) {
+        debugPrint("Overlay уже удалён или контекст мёртв: $e");
+      }
+      _overlayEntry = null;
+      _overlayInserted = false;
+    }
+
     _speechService.stop();
     _ttsService.stop();
     super.dispose();

@@ -175,4 +175,30 @@ class AppTheme {
 
   // Метод для получения текущего размера шрифта (для настроек)
   static FontSizeOption getCurrentFontSize() => _currentFontSize;
+
+  static Color getChatBubbleColor(BuildContext context, bool isMine) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (isMine) {
+      return isDark ? Colors.amber.shade600 : Colors.cyan.shade100;
+    } else {
+      return isDark ? Colors.grey.shade800 : Colors.grey.shade200;
+    }
+  }
+
+  static Color getChatTextColor(BuildContext context, bool isMine) {
+    final bubbleColor = getChatBubbleColor(context, isMine);
+    final luminance = bubbleColor.computeLuminance();
+    return luminance < 0.55 ? Colors.white : Colors.black87;
+  }
+
+  static Color getChatSecondaryTextColor(BuildContext context, bool isMine) {
+    final textColor = getChatTextColor(context, isMine);
+    return textColor.withOpacity(0.70);
+  }
+
+  static Color getChatIncomingBubbleColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? Colors.grey.shade800 : Colors.grey.shade300;
+  }
 }

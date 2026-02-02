@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ar/core/services/auth_provider.dart';
 import 'package:flutter_ar/core/services/settings_provider.dart';
 import 'package:flutter_ar/core/theme/app_theme.dart';
 import 'package:flutter_ar/features/start/presentation/start_page.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => SettingsProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
       child: const MyApp(),
     ),
   );

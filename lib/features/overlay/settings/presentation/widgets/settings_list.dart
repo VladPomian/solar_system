@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ar/core/services/auth_provider.dart';
 import 'package:flutter_ar/core/services/settings_provider.dart';
 import 'package:flutter_ar/core/theme/app_theme.dart';
+import 'package:flutter_ar/features/auth/presentation/user/screens/my_questions_screen.dart';
 import 'package:flutter_ar/features/overlay/help/presentation/help_page.dart';
 import 'package:flutter_ar/features/overlay/settings/dialog/app_version_dialog.dart';
 import 'package:flutter_ar/features/overlay/settings/dialog/developer_dialog.dart';
+import 'package:flutter_ar/features/overlay/settings/dialog/feedback_dialog.dart';
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/action_setting.dart';
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/ai_model_setting.dart';
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/cache_clear_setting.dart';
@@ -11,6 +14,7 @@ import 'package:flutter_ar/features/overlay/settings/presentation/widgets/font_s
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/info_setting.dart';
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/slider_setting.dart';
 import 'package:flutter_ar/features/overlay/settings/presentation/widgets/switch_setting.dart';
+import 'package:provider/provider.dart';
 
 class SettingsList extends StatelessWidget {
   final bool isDarkTheme;
@@ -139,9 +143,39 @@ class SettingsList extends StatelessWidget {
         _section('Поддержка'),
         ActionSetting(
           title: 'Обратная связь',
-          subtitle: 'Отправить отзыв разработчикам',
+          subtitle: 'Отправить сообщение разработчикам',
           icon: Icons.feedback,
-          onTap: () {},
+          onTap: () {
+            final auth = context.read<AuthProvider>();
+            if (auth.isAuthenticated) {
+              showFeedbackDialog(context, theme, _alertColor);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Необходимо войти в аккаунт')),
+              );
+            }
+          },
+          theme: theme,
+          cardColor: _cardColor,
+        ),
+
+        ActionSetting(
+          title: 'Мои сообщения',
+          subtitle: 'История обращений и ответы',
+          icon: Icons.question_answer,
+          onTap: () {
+            if (context.read<AuthProvider>().isAuthenticated && 
+                !context.read<AuthProvider>().isAdmin) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => MyQuestionsScreen()),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Доступно только авторизованным пользователям')),
+              );
+            }
+          },
           theme: theme,
           cardColor: _cardColor,
         ),
@@ -153,6 +187,37 @@ class SettingsList extends StatelessWidget {
             context,
             MaterialPageRoute(builder: (_) => const HelpPage()),
           ),
+          theme: theme,
+          cardColor: _cardColor,
+        ),
+        ActionSetting(
+          title: 'Выйти из аккаунта',
+          subtitle: 'Завершить сессию',
+          icon: Icons.logout,
+          onTap: () async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Выйти из аккаунта'),
+                content: const Text('Завершить работу в аккаунте и вернуться на экран входа?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Отмена'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Выйти', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirmed == true) {
+              await context.read<AuthProvider>().signOut();
+              Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+            }
+          },
           theme: theme,
           cardColor: _cardColor,
         ),

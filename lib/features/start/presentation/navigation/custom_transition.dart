@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ar/core/theme/app_theme.dart';
-import 'package:flutter_ar/features/sections/presentation/sections_page.dart';
+import 'package:flutter_ar/features/auth/presentation/auth_check_page.dart';
 
 Route createCustomRoute({
   required Function(bool) onThemeChanged,
@@ -9,7 +9,7 @@ Route createCustomRoute({
   required FontSizeOption fontSize,
 }) {
   return PageRouteBuilder(
-    pageBuilder: (context, animation, secondaryAnimation) => SectionsPage(
+    pageBuilder: (context, animation, secondaryAnimation) => AuthCheckPage(
       onThemeChanged: onThemeChanged,
       isDarkTheme: isDarkTheme,
       onFontSizeChanged: onFontSizeChanged,
@@ -23,9 +23,8 @@ Route createCustomRoute({
       var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
       var offsetAnimation = animation.drive(tween);
 
-      var secondaryTween =
-          Tween(begin: Offset.zero, end: const Offset(0.0, -1.0))
-              .chain(CurveTween(curve: curve));
+      var secondaryTween = Tween(begin: Offset.zero, end: const Offset(0.0, -1.0))
+          .chain(CurveTween(curve: curve));
       var secondaryOffsetAnimation = secondaryAnimation.drive(secondaryTween);
 
       return Stack(
