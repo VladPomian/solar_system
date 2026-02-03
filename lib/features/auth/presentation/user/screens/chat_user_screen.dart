@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ar/features/auth/data/models/ticket_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -25,6 +26,31 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _markAsRead();
+  }
+
+  Future<void> _markAsRead() async {
+    try {
+      final ticketSnap = await _firestoreService.getTicketStream(widget.ticket.id).first;
+      final ticket = ticketSnap ?? widget.ticket;
+
+      final hasUnread = ticket.adminMessages.isNotEmpty &&
+          (ticket.lastReadByUser == null || ticket.adminMessages.any((m) => m.timestamp.compareTo(ticket.lastReadByUser!) > 0));
+
+      if (hasUnread) {
+        await FirebaseFirestore.instance
+            .collection('tickets')
+            .doc(widget.ticket.id)
+            .update({
+          'lastReadByUser': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.ticket.theme)),
@@ -35,6 +61,18 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
               stream: _firestoreService.getTicketStream(widget.ticket.id),
               builder: (context, snapshot) {
                 final ticket = snapshot.data ?? widget.ticket;
+
+                if (ticket.adminMessages.isNotEmpty) {
+                  final latestAdminMsg = ticket.adminMessages.last;
+                  final lastRead = ticket.lastReadByUser;
+
+                  if (lastRead == null || latestAdminMsg.timestamp.compareTo(lastRead) > 0) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) async {
+                      await _markAsRead();
+                    });
+                  }
+                }
+
                 final messages = ticket.displayMessages;
 
                 return ListView.builder(

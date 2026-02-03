@@ -81,39 +81,25 @@ class FirestoreService {
   }
 
   Future<void> addUserMessage(String ticketId, String text) async {
-    if (text.isEmpty) return;
+  if (text.isEmpty) return;
 
-    final messageText = text.trim();
-    if (messageText.isEmpty) return;
+  final messageText = text.trim();
+  if (messageText.isEmpty) return;
 
-    final docRef = _firestore.collection('tickets').doc(ticketId);
+  final newMessage = {
+    'text': messageText,
+    'timestamp': Timestamp.now(),
+  };
 
-    try {
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) {
-          throw Exception("Тикет не существует");
-        }
-
-        final data = snapshot.data()!;
-        final currentMessages = List<Map<String, dynamic>>.from(
-          data['userMessages'] as List? ?? [],
-        );
-
-        currentMessages.add({
-          'text': messageText,
-          'timestamp': Timestamp.now(),
-        });
-
-        transaction.update(docRef, {
-          'userMessages': currentMessages,
-        });
-      });
-    } catch (e) {
-      print('Ошибка отправки сообщения пользователем: $e');
-      rethrow;
-    }
+  try {
+    await _firestore.collection('tickets').doc(ticketId).update({
+      'userMessages': FieldValue.arrayUnion([newMessage]),
+    });
+  } catch (e) {
+    print('Ошибка отправки сообщения пользователем: $e');
+    rethrow;
   }
+}
 
   Future<void> setCanUserReply(String ticketId, bool canReply) async {
     await _firestore

@@ -39,6 +39,8 @@ class Ticket {
   final List<Message> adminMessages;
   final List<Message> userMessages;
   final bool canUserReply;
+  final Timestamp? lastReadByUser;
+  final Timestamp? lastReadByAdmin;
 
   Ticket({
     required this.id,
@@ -51,6 +53,8 @@ class Ticket {
     this.adminMessages = const [],
     this.userMessages = const [],
     this.canUserReply = false,
+    this.lastReadByUser,
+    this.lastReadByAdmin,
   });
 
   factory Ticket.fromFirestore(String id, Map<String, dynamic> data) {
@@ -73,6 +77,8 @@ class Ticket {
               .toList() ??
           [],
       canUserReply: data['canUserReply'] ?? false, 
+      lastReadByUser: data['lastReadByUser'] as Timestamp?,
+      lastReadByAdmin: data['lastReadByAdmin'] as Timestamp?,
     );
   }
 
@@ -86,6 +92,8 @@ class Ticket {
       'adminMessages': adminMessages.map((m) => m.toFirestore()).toList(),
       'userMessages': userMessages.map((m) => m.toFirestore()).toList(),
       'canUserReply': canUserReply,
+      if (lastReadByUser != null) 'lastReadByUser': lastReadByUser,
+      if (lastReadByAdmin != null) 'lastReadByAdmin': lastReadByAdmin,
     };
   }
 

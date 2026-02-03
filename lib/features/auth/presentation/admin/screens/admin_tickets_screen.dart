@@ -143,7 +143,14 @@ class AdminTicketsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_unreadCountForAdmin(ticket) > 0) 
+                        _buildAdminUnreadBadge(ticket),
+                      const Icon(Icons.arrow_forward_ios, size: 16),
+                    ],
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -159,6 +166,50 @@ class AdminTicketsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Widget _buildAdminUnreadBadge(Ticket ticket) {
+    final count = _unreadCountForAdmin(ticket);
+    if (count == 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.all(5),
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        shape: BoxShape.circle,
+      ),
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  int _unreadCountForAdmin(Ticket t) {
+    final lastRead = t.lastReadByAdmin;
+
+    int count = 0;
+
+    if (t.message.trim().isNotEmpty) {
+      if (lastRead == null || t.createdAt.compareTo(lastRead) > 0) {
+        count++;
+      }
+    }
+
+    for (final msg in t.userMessages) {
+      if (lastRead == null || msg.timestamp.compareTo(lastRead) > 0) {
+        count++;
+      }
+    }
+
+    return count;
   }
 
   // === Вспомогательная функция: цвет статуса ===

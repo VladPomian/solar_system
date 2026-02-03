@@ -11,7 +11,7 @@ class MyQuestionsScreen extends StatelessWidget {
         FirestoreService(currentUid: FirebaseAuth.instance.currentUser?.uid);
 
     return Scaffold(
-      appBar: AppBar(title: Text('Мои вопросы')),
+      appBar: AppBar(title: const Text('Мои вопросы')),
       body: StreamBuilder<List<Ticket>>(
         stream: _firestoreService.getUserTickets(),
         builder: (context, snapshot) {
@@ -25,17 +25,53 @@ class MyQuestionsScreen extends StatelessWidget {
                 child: ListTile(
                   title: Text(ticket.theme),
                   subtitle: Text(ticket.status),
+                  trailing: _buildUnreadBadge(ticket),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => ChatUserScreen(ticket: ticket)),
+                    MaterialPageRoute(builder: (_) => ChatUserScreen(ticket: ticket)),
                   ),
-                ),
+                )
               );
             },
           );
         },
       ),
     );
+  }
+
+  Widget _buildUnreadBadge(Ticket ticket) {
+    final count = _unreadCountForUser(ticket);
+    if (count <= 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.all(5),
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        shape: BoxShape.circle,
+      ),
+      constraints: const BoxConstraints(
+        minWidth: 18,
+        minHeight: 18,
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  int _unreadCountForUser(Ticket t) {
+    final msgs = t.adminMessages;
+    if (msgs.isEmpty) return 0;
+    final lastRead = t.lastReadByUser;
+    if (lastRead == null) return msgs.length;
+
+    return msgs.where((m) => m.timestamp.compareTo(lastRead) > 0).length;
   }
 }

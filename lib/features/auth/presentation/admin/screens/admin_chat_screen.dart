@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_ar/features/auth/data/models/ticket_model.dart';
@@ -23,6 +24,29 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   void initState() {
     super.initState();
     _selectedStatus = widget.ticket.status;
+    _markAsRead();
+  }
+
+  Future<void> _markAsRead() async {
+    try {
+      final ticketSnap = await _firestoreService.getTicketStream(widget.ticket.id).first;
+      final ticket = ticketSnap ?? widget.ticket;
+
+      int unreadCount = 0;
+      if (ticket.message.trim().isNotEmpty && (ticket.lastReadByAdmin == null || ticket.createdAt.compareTo(ticket.lastReadByAdmin!) > 0)) {
+        unreadCount++;
+      }
+      unreadCount += ticket.userMessages.where((m) => ticket.lastReadByAdmin == null || m.timestamp.compareTo(ticket.lastReadByAdmin!) > 0).length;
+
+      if (unreadCount > 0) {
+        await FirebaseFirestore.instance
+            .collection('tickets')
+            .doc(widget.ticket.id)
+            .update({
+          'lastReadByAdmin': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -38,6 +62,18 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
               stream: _firestoreService.getTicketStream(widget.ticket.id),
               builder: (context, snapshot) {
                 final ticket = snapshot.data ?? widget.ticket;
+
+                if (ticket.userMessages.isNotEmpty) {
+                  final latestUserMsg = ticket.userMessages.last;
+                  final lastRead = ticket.lastReadByAdmin;
+
+                  if (lastRead == null || latestUserMsg.timestamp.compareTo(lastRead) > 0) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _markAsRead();
+                    });
+                  }
+                }
+
                 final messages = ticket.displayMessages;
 
                 return ListView.builder(
