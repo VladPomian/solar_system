@@ -20,24 +20,36 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
   final _messageController = TextEditingController();
 
   @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
     _markAsRead();
   }
 
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
   Future<void> _markAsRead() async {
     try {
-      final ticketSnap = await _firestoreService.getTicketStream(widget.ticket.id).first;
-      final ticket = ticketSnap ?? widget.ticket;
+      final doc = await FirebaseFirestore.instance
+          .collection('tickets')
+          .doc(widget.ticket.id)
+          .get(const GetOptions(source: Source.server));
 
-      final hasUnread = ticket.adminMessages.isNotEmpty &&
-          (ticket.lastReadByUser == null || ticket.adminMessages.any((m) => m.timestamp.compareTo(ticket.lastReadByUser!) > 0));
+      if (!doc.exists) return;
+
+      final data = doc.data()!;
+      final currentLastRead = data['lastReadByUser'] as Timestamp?;
+
+      final adminMessages = (data['adminMessages'] as List<dynamic>?)?.map((e) {
+        return Message.fromFirestore(e as Map<String, dynamic>, isFromAdmin: true);
+      }).toList() ?? [];
+
+      final hasUnread = adminMessages.any(
+        (m) => currentLastRead == null || m.timestamp.compareTo(currentLastRead) > 0,
+      );
 
       if (hasUnread) {
         await FirebaseFirestore.instance
@@ -47,7 +59,9 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
           'lastReadByUser': FieldValue.serverTimestamp(),
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Ошибка markAsRead (user): $e');
+    }
   }
 
   @override
@@ -67,8 +81,8 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
                   final lastRead = ticket.lastReadByUser;
 
                   if (lastRead == null || latestAdminMsg.timestamp.compareTo(lastRead) > 0) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) async {
-                      await _markAsRead();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _markAsRead();
                     });
                   }
                 }
@@ -85,6 +99,8 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
                       isMine: !msg.isFromAdmin,
                       showSenderLabel: !msg.isFromAdmin,
                       senderLabel: !msg.isFromAdmin ? 'Админ' : null,
+                      ticket: ticket,
+                      isCurrentUserAdmin: false,
                     );
                   },
                 );
@@ -110,7 +126,6 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
     );
   }
 
-  // Отправка сообщения пользователем
   void _sendUserMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -119,6 +134,7 @@ class _ChatUserScreenState extends State<ChatUserScreen> {
 
     try {
       await _firestoreService.addUserMessage(widget.ticket.id, text);
+      await _markAsRead();
     } catch (e) {
       _messageController.text = text;
 

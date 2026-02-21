@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_ar/core/theme/app_theme.dart';
@@ -9,7 +11,7 @@ final firestoreService = FirestoreService(currentUid: uid);
 
   showDialog(
     context: parentContext,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogContext) {
       return _FeedbackDialogContent(
         parentContext: parentContext,
@@ -222,10 +224,17 @@ class _FeedbackDialogContentState extends State<_FeedbackDialogContent> {
     });
 
     try {
-      await widget.firestoreService.createTicket(themeText, messageText);
+      await widget.firestoreService.createTicket(themeText, messageText).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Время ожидания истекло');
+        },
+      );
 
+      if (!mounted) return;
+
+      Navigator.pop(context);
       if (widget.parentContext.mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(widget.parentContext).showSnackBar(
           const SnackBar(
             content: Text('Обращение отправлено!'),
@@ -233,10 +242,45 @@ class _FeedbackDialogContentState extends State<_FeedbackDialogContent> {
           ),
         );
       }
-    } catch (e) {
+    } on TimeoutException {
       if (mounted) {
         setState(() {
-          errorMessage = 'Не удалось отправить. Проверьте интернет.';
+          errorMessage = 'Время ожидания истекло. Возможно, превышена квота Firestore.';
+          isLoading = false;
+        });
+      }
+    } on FirebaseException catch (e) {
+      String userMessage = 'Ошибка отправки';
+
+      switch (e.code) {
+        case 'resource-exhausted':
+        case 'quota-exceeded':
+          userMessage = 'Превышен лимит обращений (квота Firestore). Попробуйте позже.';
+          break;
+        case 'permission-denied':
+          userMessage = 'Нет прав на отправку.';
+          break;
+        case 'unavailable':
+        case 'deadline-exceeded':
+          userMessage = 'Сервис временно недоступен.';
+          break;
+        default:
+          userMessage = 'Ошибка: ${e.message ?? e.code}';
+          debugPrint('Firestore error: ${e.code} — ${e.message}');
+      }
+
+      if (mounted) {
+        setState(() {
+          errorMessage = userMessage;
+          isLoading = false;
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('Неожиданная ошибка при отправке: $e\n$stack');
+
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Не удалось отправить. Возможно, превышена квота или проблема с сетью.';
           isLoading = false;
         });
       }

@@ -80,6 +80,7 @@ class FirestoreService {
     }
   }
 
+
   Future<void> addUserMessage(String ticketId, String text) async {
   if (text.isEmpty) return;
 

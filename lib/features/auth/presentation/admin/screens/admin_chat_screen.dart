@@ -29,14 +29,32 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Future<void> _markAsRead() async {
     try {
-      final ticketSnap = await _firestoreService.getTicketStream(widget.ticket.id).first;
-      final ticket = ticketSnap ?? widget.ticket;
+      final doc = await FirebaseFirestore.instance
+          .collection('tickets')
+          .doc(widget.ticket.id)
+          .get(const GetOptions(source: Source.server));
+
+      if (!doc.exists) return;
+
+      final data = doc.data()!;
+      final currentLastRead = data['lastReadByAdmin'] as Timestamp?;
+
+      final userMessages = (data['userMessages'] as List<dynamic>?)?.map((e) {
+        return Message.fromFirestore(e as Map<String, dynamic>, isFromAdmin: false);
+      }).toList() ?? [];
+
+      final initialMessageTime = data['createdAt'] as Timestamp?;
 
       int unreadCount = 0;
-      if (ticket.message.trim().isNotEmpty && (ticket.lastReadByAdmin == null || ticket.createdAt.compareTo(ticket.lastReadByAdmin!) > 0)) {
+
+      if (initialMessageTime != null && 
+          (currentLastRead == null || initialMessageTime.compareTo(currentLastRead) > 0)) {
         unreadCount++;
       }
-      unreadCount += ticket.userMessages.where((m) => ticket.lastReadByAdmin == null || m.timestamp.compareTo(ticket.lastReadByAdmin!) > 0).length;
+
+      unreadCount += userMessages.where((m) => 
+        currentLastRead == null || m.timestamp.compareTo(currentLastRead) > 0
+      ).length;
 
       if (unreadCount > 0) {
         await FirebaseFirestore.instance
@@ -46,7 +64,9 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
           'lastReadByAdmin': FieldValue.serverTimestamp(),
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Ошибка markAsRead (admin): $e');
+    }
   }
 
   @override
@@ -86,6 +106,8 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                       isMine: msg.isFromAdmin,
                       showSenderLabel: true,
                       senderLabel: msg.isFromAdmin ? 'Админ' : ticket.userEmail,
+                      ticket: ticket,
+                      isCurrentUserAdmin: true,
                     );
                   },
                 );
@@ -123,8 +145,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     return StreamBuilder<Ticket?>(
       stream: _firestoreService.getTicketStream(widget.ticket.id),
       builder: (context, snapshot) {
-        final canReply =
-            snapshot.data?.canUserReply ?? widget.ticket.canUserReply;
+        final canReply = snapshot.data?.canUserReply ?? widget.ticket.canUserReply;
         return CheckboxListTile(
           title: const Text('Разрешить пользователю отвечать'),
           value: canReply,
@@ -143,6 +164,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
     try {
       await _firestoreService.addAdminMessage(widget.ticket.id, text);
+      await _markAsRead();
     } catch (e) {
       _messageController.text = text;
 
